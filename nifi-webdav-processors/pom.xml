@@ -16,7 +16,7 @@
 	<parent>
 		<groupId>org.apache.nifi</groupId>
 		<artifactId>nifi-webdav-bundle</artifactId>
-		<version>1.10.0</version>
+		<version>1.28.1</version>
 	</parent>
 
 	<artifactId>nifi-webdav-processors</artifactId>
@@ -26,19 +26,19 @@
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-api</artifactId>
-			<version>1.10.0</version>
+			<version>1.28.1</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-ssl-context-service-api</artifactId>
-			<version>1.10.0</version>
+			<version>1.28.1</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-processor-utils</artifactId>
-			<version>1.10.0</version>
+			<version>1.15.3</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
@@ -48,7 +48,7 @@
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-mock</artifactId>
-			<version>1.10.0</version>
+			<version>1.28.1</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -63,6 +63,7 @@
 
 			<scope>test</scope>
 		</dependency>
+		
 		<dependency>
 			<groupId>com.github.lookfirst</groupId>
 			<artifactId>sardine</artifactId>
