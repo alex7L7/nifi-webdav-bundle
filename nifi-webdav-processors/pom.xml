@@ -16,7 +16,7 @@
 	<parent>
 		<groupId>org.apache.nifi</groupId>
 		<artifactId>nifi-webdav-bundle</artifactId>
-		<version>1.10.0</version>
+		<version>1.28.1</version>
 	</parent>
 
 	<artifactId>nifi-webdav-processors</artifactId>
@@ -26,19 +26,19 @@
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-api</artifactId>
-			<version>1.10.0</version>
+			<version>1.28.1</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-ssl-context-service-api</artifactId>
-			<version>1.10.0</version>
+			<version>1.28.1</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-processor-utils</artifactId>
-			<version>1.10.0</version>
+			<version>1.15.3</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
@@ -48,7 +48,7 @@
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-mock</artifactId>
-			<version>1.10.0</version>
+			<version>1.28.1</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -63,10 +63,26 @@
 
 			<scope>test</scope>
 		</dependency>
+		
 		<dependency>
 			<groupId>com.github.lookfirst</groupId>
 			<artifactId>sardine</artifactId>
-			<version>5.7</version>
+			<version>5.9</version>
 		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/jakarta.xml.bind/jakarta.xml.bind-api -->
+		<dependency>
+			<groupId>jakarta.xml.bind</groupId>
+			<artifactId>jakarta.xml.bind-api</artifactId>
+			<version>2.3.3</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.glassfish.jaxb/jaxb-runtime -->
+		<dependency>
+			<groupId>org.glassfish.jaxb</groupId>
+			<artifactId>jaxb-runtime</artifactId>
+			<version>2.3.3</version>
+		</dependency>
+
 	</dependencies>
 </project>
