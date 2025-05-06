@@ -34,6 +34,10 @@ import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -84,7 +88,10 @@ public class FetchWebDAV extends AbstractWebDAVProcessor {
         boolean getAllProperties = context.getProperty(GET_ALL_PROPS).evaluateAttributeExpressions(flowFile).asBoolean();
         try {
             try {
-                String url = context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue();
+                URL urlRes = new URL(context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue());
+                URI uriRes = new URI(urlRes.getProtocol(), urlRes.getUserInfo(), urlRes.getHost(), urlRes.getPort(), urlRes.getPath(), urlRes.getQuery(), urlRes.getRef());
+
+                String url = uriRes.toASCIIString();
                 addAuth(context, url);
                 Sardine sardine = buildSardine();
                 // get all the properties
