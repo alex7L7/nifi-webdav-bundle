@@ -29,6 +29,7 @@ import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.components.state.Scope;
 import org.apache.nifi.components.state.StateManager;
 import org.apache.nifi.components.state.StateMap;
+import org.apache.nifi.expression.ExpressionLanguageScope;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
@@ -57,6 +58,16 @@ import java.util.*;
         + "a new Primary Node is selected, the new node will not duplicate the data that was listed by the previous Primary Node.")
 public class ListWebDAV extends AbstractWebDAVProcessor {
 
+    public static final PropertyDescriptor ONLY_NEW = new PropertyDescriptor.Builder()
+            .name("Only new objects in list")
+            .description("Add only new elements to the result flow")
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
+            .required(true)
+            .allowableValues(TRUE_VALUE,FALSE_VALUE)
+            .defaultValue("false")
+            .build();
+
+
     public static final PropertyDescriptor DEPTH = new PropertyDescriptor.Builder().name("Search Depth").description("The depth of links to follow for new collections")
             .addValidator(StandardValidators.INTEGER_VALIDATOR).defaultValue("1").build();
 
@@ -66,7 +77,7 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
     @Override
     protected void init(final ProcessorInitializationContext context) {
 
-        properties = List.of(URL, DEPTH, SSL_CONTEXT_SERVICE, USERNAME, PASSWORD, NTLM_AUTH, PROXY_CONFIGURATION_SERVICE,
+        properties = List.of(URL, DEPTH, SSL_CONTEXT_SERVICE, USERNAME, PASSWORD, ONLY_NEW, NTLM_AUTH, PROXY_CONFIGURATION_SERVICE,
                 PROXY_HOST, PROXY_PORT, HTTP_PROXY_USERNAME, HTTP_PROXY_PASSWORD, NTLM_PROXY_AUTH);
 
         relationships = Set.of(REL_SUCCESS);
@@ -88,32 +99,44 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
         String url = context.getProperty(URL).evaluateAttributeExpressions().getValue();
         addAuth(context, url);
 
-        long lastModified;
-        try {
-            lastModified = Long.parseLong(readState(context, "lastModified", "0"));
-        } catch (IOException e) {
-            throw new ProcessException("Failed read State", e);
-        }
-
         LinkedList<FlowFile> files = new LinkedList<>();
-        long maxModified;
-        try {
-            maxModified = listDAVFile(session, url, context.getProperty(DEPTH).asInteger(), files, lastModified);
-        } catch (IOException e) {
-            throw new ProcessException("Failed List Files", e);
-        }
 
-
-        if (!files.isEmpty()) {
-            session.transfer(files, REL_SUCCESS);
+        if(!context.getProperty(ONLY_NEW).asBoolean()) {
             try {
-                saveState(context, "lastModified", String.valueOf(maxModified));
+                listDAVFile(session, url, context.getProperty(DEPTH).asInteger(), files);
             } catch (IOException e) {
-                throw new ProcessException("Failed write state", e);
+                throw new ProcessException("Failed List Files", e);
             }
 
+            if (!files.isEmpty()) {
+                session.transfer(files, REL_SUCCESS);
+            }
         }
+        else {
+            long lastModified;
+            try {
+                lastModified = Long.parseLong(readState(context, "lastModified", "0"));
+            } catch (IOException e) {
+                throw new ProcessException("Failed read State", e);
+            }
 
+            long maxModified;
+            try {
+                maxModified = listDAVFile(session, url, context.getProperty(DEPTH).asInteger(), files, lastModified);
+            } catch (IOException e) {
+                throw new ProcessException("Failed List Files", e);
+            }
+
+            if (!files.isEmpty()) {
+                session.transfer(files, REL_SUCCESS);
+                try {
+                    saveState(context, "lastModified", String.valueOf(maxModified));
+                } catch (IOException e) {
+                    throw new ProcessException("Failed write state", e);
+                }
+
+            }
+        }
     }
 
     private long listDAVFile(ProcessSession session, String url, int depth, LinkedList<FlowFile> files, long lastModified) throws IOException {
@@ -130,6 +153,16 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
             }
         }
         return maxModified;
+    }
+
+    private boolean listDAVFile(ProcessSession session, String url, int depth, LinkedList<FlowFile> files ) throws IOException {
+        Sardine sardine = buildSardine();
+        List<DavResource> list;
+        list = sardine.list(url, depth);
+        for (final DavResource resource : list) {
+            files.add(createFile(session, resource));
+        }
+        return true;
     }
 
     private FlowFile createFile(ProcessSession session, DavResource resource) {
