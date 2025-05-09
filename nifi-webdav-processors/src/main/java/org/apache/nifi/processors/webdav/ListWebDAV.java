@@ -40,6 +40,8 @@ import org.apache.nifi.processor.util.StandardValidators;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Tags({"webdav", "list"})
 @CapabilityDescription("List Files in a WebDAV folders")
@@ -67,9 +69,20 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
             .defaultValue("false")
             .build();
 
+    public static final PropertyDescriptor NAME_MASK = new PropertyDescriptor.Builder()
+            .name("Object name mask")
+            .description("Object name mask")
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .defaultValue(".*")
+            .required(false)
+            .build();
 
-    public static final PropertyDescriptor DEPTH = new PropertyDescriptor.Builder().name("Search Depth").description("The depth of links to follow for new collections")
-            .addValidator(StandardValidators.INTEGER_VALIDATOR).defaultValue("1").build();
+    public static final PropertyDescriptor DEPTH = new PropertyDescriptor.Builder()
+            .name("Search Depth")
+            .description("The depth of links to follow for new collections")
+            .addValidator(StandardValidators.INTEGER_VALIDATOR)
+            .defaultValue("1")
+            .build();
 
     private List<PropertyDescriptor> properties;
     private Set<Relationship> relationships;
@@ -77,7 +90,7 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
     @Override
     protected void init(final ProcessorInitializationContext context) {
 
-        properties = List.of(URL, DEPTH, SSL_CONTEXT_SERVICE, USERNAME, PASSWORD, ONLY_NEW, NTLM_AUTH, PROXY_CONFIGURATION_SERVICE,
+        properties = List.of(URL, DEPTH, SSL_CONTEXT_SERVICE, USERNAME, PASSWORD, ONLY_NEW, NAME_MASK, NTLM_AUTH, PROXY_CONFIGURATION_SERVICE,
                 PROXY_HOST, PROXY_PORT, HTTP_PROXY_USERNAME, HTTP_PROXY_PASSWORD, NTLM_PROXY_AUTH);
 
         relationships = Set.of(REL_SUCCESS);
@@ -96,6 +109,7 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
     @Override
     public void onTrigger(final ProcessContext context, final ProcessSession session) throws ProcessException {
 
+        String name_mask = context.getProperty(NAME_MASK).toString();
         String url = context.getProperty(URL).evaluateAttributeExpressions().getValue();
         addAuth(context, url);
 
@@ -103,7 +117,7 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
 
         if(!context.getProperty(ONLY_NEW).asBoolean()) {
             try {
-                listDAVFile(session, url, context.getProperty(DEPTH).asInteger(), files);
+                listDAVFile(session, url, context.getProperty(DEPTH).asInteger(), files, name_mask);
             } catch (IOException e) {
                 throw new ProcessException("Failed List Files", e);
             }
@@ -155,14 +169,17 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
         return maxModified;
     }
 
-    private boolean listDAVFile(ProcessSession session, String url, int depth, LinkedList<FlowFile> files ) throws IOException {
+    private void listDAVFile(ProcessSession session, String url, int depth, LinkedList<FlowFile> files, String name_mask ) throws IOException {
+        Pattern pattern = Pattern.compile(name_mask);
         Sardine sardine = buildSardine();
         List<DavResource> list;
         list = sardine.list(url, depth);
         for (final DavResource resource : list) {
-            files.add(createFile(session, resource));
+            Matcher matcher = pattern.matcher(resource.toString());
+            if(matcher.find()) {
+                files.add(createFile(session, resource));
+            }
         }
-        return true;
     }
 
     private FlowFile createFile(ProcessSession session, DavResource resource) {
