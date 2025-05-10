@@ -44,7 +44,7 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
 
     public static final PropertyDescriptor URL = new PropertyDescriptor.Builder()
             .name("URL")
-            .description("A resource URL on a WebDAV server")
+            .description("WebDAV server URL")
             .required(true)
             .expressionLanguageSupported(ExpressionLanguageScope.FLOWFILE_ATTRIBUTES)
             .addValidator(StandardValidators.URL_VALIDATOR)
@@ -63,6 +63,7 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .required(false)
             .build();
+
     public static final PropertyDescriptor PASSWORD = new PropertyDescriptor.Builder()
             .name("Password")
             .description("Password for the user account")
@@ -70,6 +71,7 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
             .required(false)
             .sensitive(true)
             .build();
+
     public static final PropertyDescriptor NTLM_AUTH = new PropertyDescriptor.Builder()
             .name("NTLM Authentication")
             .description("Use NTLM authentication")
@@ -78,6 +80,7 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
             .allowableValues(TRUE_VALUE,FALSE_VALUE)
             .defaultValue("false")
             .build();
+
     private static final ProxySpec[] PROXY_SPECS = {ProxySpec.HTTP_AUTH};
     public static final PropertyDescriptor PROXY_CONFIGURATION_SERVICE
             = ProxyConfiguration.createProxyConfigPropertyDescriptor(true, PROXY_SPECS);

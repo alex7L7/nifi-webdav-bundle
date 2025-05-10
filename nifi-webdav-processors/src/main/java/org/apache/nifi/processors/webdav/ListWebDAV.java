@@ -29,7 +29,6 @@ import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.components.state.Scope;
 import org.apache.nifi.components.state.StateManager;
 import org.apache.nifi.components.state.StateMap;
-import org.apache.nifi.expression.ExpressionLanguageScope;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
@@ -39,6 +38,8 @@ import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URL;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -59,6 +60,14 @@ import java.util.regex.Pattern;
         + "this date the next time that the Processor is run. State is stored across the cluster so that this Processor can be run on Primary Node only and if "
         + "a new Primary Node is selected, the new node will not duplicate the data that was listed by the previous Primary Node.")
 public class ListWebDAV extends AbstractWebDAVProcessor {
+
+    public static final PropertyDescriptor REL_PATH = new PropertyDescriptor.Builder()
+            .name("Relative PATH on WebDav server")
+            .description("Relative PATH on WebDav server")
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .required(true)
+            .defaultValue("/")
+            .build();
 
     public static final PropertyDescriptor ONLY_NEW = new PropertyDescriptor.Builder()
             .name("Only new objects in list")
@@ -90,7 +99,7 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
     @Override
     protected void init(final ProcessorInitializationContext context) {
 
-        properties = List.of(URL, DEPTH, SSL_CONTEXT_SERVICE, USERNAME, PASSWORD, ONLY_NEW, NAME_MASK, NTLM_AUTH, PROXY_CONFIGURATION_SERVICE,
+        properties = List.of(URL, REL_PATH, DEPTH, SSL_CONTEXT_SERVICE, USERNAME, PASSWORD, ONLY_NEW, NAME_MASK, NTLM_AUTH, PROXY_CONFIGURATION_SERVICE,
                 PROXY_HOST, PROXY_PORT, HTTP_PROXY_USERNAME, HTTP_PROXY_PASSWORD, NTLM_PROXY_AUTH);
 
         relationships = Set.of(REL_SUCCESS);
@@ -110,46 +119,52 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
     public void onTrigger(final ProcessContext context, final ProcessSession session) throws ProcessException {
 
         String name_mask = context.getProperty(NAME_MASK).toString();
-        String url = context.getProperty(URL).evaluateAttributeExpressions().getValue();
-        addAuth(context, url);
+        try {
+            URL urlRes = new URL(context.getProperty(URL).toString() + context.getProperty(REL_PATH).toString());
+            URI uriRes = new URI(urlRes.getProtocol(), urlRes.getUserInfo(), urlRes.getHost(), urlRes.getPort(), urlRes.getPath(), urlRes.getQuery(), urlRes.getRef());
 
-        LinkedList<FlowFile> files = new LinkedList<>();
+            String url = uriRes.toASCIIString();
+            addAuth(context, url);
 
-        if(!context.getProperty(ONLY_NEW).asBoolean()) {
-            try {
-                listDAVFile(session, url, context.getProperty(DEPTH).asInteger(), files, name_mask);
-            } catch (IOException e) {
-                throw new ProcessException("Failed List Files", e);
-            }
+            LinkedList<FlowFile> files = new LinkedList<>();
 
-            if (!files.isEmpty()) {
-                session.transfer(files, REL_SUCCESS);
-            }
-        }
-        else {
-            long lastModified;
-            try {
-                lastModified = Long.parseLong(readState(context, "lastModified", "0"));
-            } catch (IOException e) {
-                throw new ProcessException("Failed read State", e);
-            }
-
-            long maxModified;
-            try {
-                maxModified = listDAVFile(session, url, context.getProperty(DEPTH).asInteger(), files, lastModified);
-            } catch (IOException e) {
-                throw new ProcessException("Failed List Files", e);
-            }
-
-            if (!files.isEmpty()) {
-                session.transfer(files, REL_SUCCESS);
+            if (!context.getProperty(ONLY_NEW).asBoolean()) {
                 try {
-                    saveState(context, "lastModified", String.valueOf(maxModified));
+                    listDAVFile(session, url, context.getProperty(DEPTH).asInteger(), files, name_mask);
                 } catch (IOException e) {
-                    throw new ProcessException("Failed write state", e);
+                    throw new ProcessException("Failed List Files", e);
                 }
 
+                if (!files.isEmpty()) {
+                    session.transfer(files, REL_SUCCESS);
+                }
+            } else {
+                long lastModified;
+                try {
+                    lastModified = Long.parseLong(readState(context, "lastModified", "0"));
+                } catch (IOException e) {
+                    throw new ProcessException("Failed read State", e);
+                }
+
+                long maxModified;
+                try {
+                    maxModified = listDAVFile(session, url, context.getProperty(DEPTH).asInteger(), files, lastModified);
+                } catch (IOException e) {
+                    throw new ProcessException("Failed List Files", e);
+                }
+
+                if (!files.isEmpty()) {
+                    session.transfer(files, REL_SUCCESS);
+                    try {
+                        saveState(context, "lastModified", String.valueOf(maxModified));
+                    } catch (IOException e) {
+                        throw new ProcessException("Failed write state", e);
+                    }
+
+                }
             }
+        } catch (Exception e) {
+            throw new ProcessException("Failed build the resource URI", e);
         }
     }
 
@@ -177,6 +192,7 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
         for (final DavResource resource : list) {
             Matcher matcher = pattern.matcher(resource.toString());
             if(matcher.find()) {
+                // TODO сделать проверку что resource c таким именем не существует
                 files.add(createFile(session, resource));
             }
         }
@@ -202,6 +218,7 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
                     put("date.created", String.valueOf(resource.getCreation().getTime()));
                 if (resource.getModified() != null)
                     put("date.modified", String.valueOf(resource.getModified().getTime()));
+                else put("date.modified", "0");
             }
         };
     }
