@@ -18,6 +18,7 @@ package org.apache.nifi.processors.webdav;
 
 import com.github.sardine.DavResource;
 import com.github.sardine.Sardine;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.nifi.annotation.behavior.*;
 import org.apache.nifi.annotation.behavior.InputRequirement.Requirement;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
@@ -56,13 +57,22 @@ public class FetchWebDAV extends AbstractWebDAVProcessor {
             .allowableValues(TRUE_VALUE,FALSE_VALUE)
             .build();
 
+    private static final PropertyDescriptor ADD_ETAG = new PropertyDescriptor.Builder()
+            .name("Add WebDAV etag to the filename")
+            .description("Add WebDAV etag to the file name. The etag is added after the base name and separated by _.")
+            .required(true)
+            .defaultValue("true")
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
+            .allowableValues(TRUE_VALUE,FALSE_VALUE)
+            .build();
+
     private List<PropertyDescriptor> properties;
     private Set<Relationship> relationships;
 
     @Override
     protected void init(final ProcessorInitializationContext context) {
 
-        properties = List.of(URL, GET_ALL_PROPS, SSL_CONTEXT_SERVICE, USERNAME, PASSWORD, NTLM_AUTH,
+        properties = List.of(URL, ADD_ETAG, GET_ALL_PROPS, SSL_CONTEXT_SERVICE, USERNAME, PASSWORD, NTLM_AUTH,
                 PROXY_CONFIGURATION_SERVICE, PROXY_HOST, PROXY_PORT, HTTP_PROXY_USERNAME, HTTP_PROXY_PASSWORD,
                 NTLM_PROXY_AUTH);
 
@@ -88,7 +98,7 @@ public class FetchWebDAV extends AbstractWebDAVProcessor {
         boolean getAllProperties = context.getProperty(GET_ALL_PROPS).evaluateAttributeExpressions(flowFile).asBoolean();
         try {
             try {
-                URL urlRes = new URL(context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue());
+                URL urlRes = new URL(context.getProperty(URL).toString() + flowFile.getAttribute("path"));
                 URI uriRes = new URI(urlRes.getProtocol(), urlRes.getUserInfo(), urlRes.getHost(), urlRes.getPort(), urlRes.getPath(), urlRes.getQuery(), urlRes.getRef());
 
                 String url = uriRes.toASCIIString();
@@ -99,6 +109,17 @@ public class FetchWebDAV extends AbstractWebDAVProcessor {
                     flowFile = session.putAllAttributes(flowFile, getProperties(sardine,url));
                 }
                 flowFile = session.importFrom(sardine.get(url), flowFile);
+                String resultFileName;
+                if(context.getProperty(ADD_ETAG).asBoolean()) {
+                    resultFileName = FilenameUtils.getBaseName(flowFile.getAttribute("filename"))
+                            + "_etag-"
+                            + flowFile.getAttribute("etag").toString().replaceAll("\"", "")
+                            + "."
+                            + FilenameUtils.getExtension(flowFile.getAttribute("filename"));
+                } else {
+                    resultFileName = flowFile.getAttribute("filename");
+                }
+                session.putAttribute(flowFile, "filename", resultFileName);
                 session.transfer(flowFile, REL_SUCCESS);
             } catch (Exception e1) {
                 flowFile = session.penalize(flowFile);
